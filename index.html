@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>할 일 목록</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1f2328;
+    --muted: #8b929a;
+    --line: #e4e6ea;
+    --accent: #4f6bed;
+    --danger: #e5484d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --card: #1f2227;
+      --text: #e8eaed;
+      --muted: #8b929a;
+      --line: #2e3238;
+      --accent: #7189ff;
+      --danger: #ff6369;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+  }
+  .app {
+    width: 100%;
+    max-width: 520px;
+  }
+  h1 {
+    margin: 0 0 20px;
+    font-size: 28px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  form {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+  .add-btn {
+    padding: 0 16px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  li input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  li .text {
+    flex: 1;
+    word-break: break-word;
+    cursor: text;
+  }
+  li.done .text {
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+  li .edit {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 15px;
+  }
+  li .del {
+    color: var(--muted);
+    font-size: 18px;
+    padding: 0 6px;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  li:hover .del, li .del:focus { opacity: 1; }
+  li .del:hover { color: var(--danger); }
+  @media (hover: none) { li .del { opacity: 1; } }
+  .empty {
+    padding: 32px 12px;
+    text-align: center;
+    color: var(--muted);
+  }
+  footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .filters { display: flex; gap: 4px; }
+  .filters button {
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .filters button.active {
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .clear:hover { color: var(--danger); }
+  .chat { margin-top: 16px; }
+  .chat-log {
+    height: 240px;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .msg {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-line;
+    word-break: break-word;
+  }
+  .msg.bot { align-self: flex-start; background: var(--bg); }
+  .msg.me { align-self: flex-end; background: var(--accent); color: #fff; }
+  .chat form {
+    border-bottom: none;
+    border-top: 1px solid var(--line);
+  }
+  .hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>할 일 목록</h1>
+  <div class="card">
+    <form id="form">
+      <input id="input" type="text" placeholder="할 일을 입력하세요" autocomplete="off" autofocus>
+      <button class="add-btn" type="submit">추가</button>
+    </form>
+    <ul id="list"></ul>
+    <footer>
+      <span id="count"></span>
+      <div class="filters">
+        <button data-filter="all">전체</button>
+        <button data-filter="active">진행 중</button>
+        <button data-filter="done">완료</button>
+      </div>
+      <button class="clear" id="clear">완료 항목 삭제</button>
+    </footer>
+  </div>
+  <div class="card chat">
+    <div class="chat-log" id="chat-log" aria-live="polite"></div>
+    <form id="chat-form">
+      <input id="chat-input" type="text" placeholder="예: 우유 사기 추가해줘" autocomplete="off">
+      <button class="add-btn" type="submit">보내기</button>
+    </form>
+  </div>
+  <p class="hint">항목을 더블클릭하면 수정할 수 있어요 · 브라우저에 자동 저장됩니다</p>
+</div>
+
+<script>
+  const STORAGE_KEY = "todo-app-items";
+  let todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  let filter = "all";
+
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const list = document.getElementById("list");
+  const count = document.getElementById("count");
+  const clearBtn = document.getElementById("clear");
+  const filterBtns = document.querySelectorAll(".filters button");
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+  }
+
+  function render() {
+    const visible = todos.filter(t =>
+      filter === "all" ? true : filter === "done" ? t.done : !t.done
+    );
+
+    list.innerHTML = "";
+    if (visible.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = todos.length === 0 ? "할 일이 없어요 🎉" : "해당하는 항목이 없어요";
+      list.appendChild(li);
+    }
+
+    for (const todo of visible) {
+      const li = document.createElement("li");
+      if (todo.done) li.classList.add("done");
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = todo.done;
+      cb.addEventListener("change", () => {
+        todo.done = cb.checked;
+        save(); render();
+      });
+
+      const span = document.createElement("span");
+      span.className = "text";
+      span.textContent = todo.text;
+      span.addEventListener("dblclick", () => startEdit(li, span, todo));
+
+      const del = document.createElement("button");
+      del.className = "del";
+      del.title = "삭제";
+      del.textContent = "×";
+      del.addEventListener("click", () => {
+        todos = todos.filter(t => t.id !== todo.id);
+        save(); render();
+      });
+
+      li.append(cb, span, del);
+      list.appendChild(li);
+    }
+
+    const left = todos.filter(t => !t.done).length;
+    count.textContent = `남은 할 일 ${left}개`;
+    clearBtn.style.visibility = todos.some(t => t.done) ? "visible" : "hidden";
+    filterBtns.forEach(b => b.classList.toggle("active", b.dataset.filter === filter));
+  }
+
+  function startEdit(li, span, todo) {
+    const edit = document.createElement("input");
+    edit.type = "text";
+    edit.className = "edit";
+    edit.value = todo.text;
+    li.replaceChild(edit, span);
+    edit.focus();
+    edit.select();
+
+    let finished = false;
+    const finish = (commit) => {
+      if (finished) return;
+      finished = true;
+      const value = edit.value.trim();
+      if (commit) {
+        if (value) todo.text = value;
+        else todos = todos.filter(t => t.id !== todo.id);
+        save();
+      }
+      render();
+    };
+    edit.addEventListener("keydown", e => {
+      if (e.key === "Enter") finish(true);
+      if (e.key === "Escape") finish(false);
+    });
+    edit.addEventListener("blur", () => finish(true));
+  }
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    todos.push({ id: Date.now() + Math.random(), text, done: false });
+    input.value = "";
+    save(); render();
+  });
+
+  filterBtns.forEach(b => b.addEventListener("click", () => {
+    filter = b.dataset.filter;
+    render();
+  }));
+
+  clearBtn.addEventListener("click", () => {
+    todos = todos.filter(t => !t.done);
+    save(); render();
+  });
+
+  // 대화창: 한국어 명령을 규칙으로 해석해 할 일을 조작
+  const chatLog = document.getElementById("chat-log");
+  const chatForm = document.getElementById("chat-form");
+  const chatInput = document.getElementById("chat-input");
+
+  const HELP = [
+    "이렇게 말해보세요:",
+    "• 우유 사기 추가해줘",
+    "• 우유 사기 완료  /  1번 완료",
+    "• 우유 사기 완료 취소",
+    "• 우유 사기 삭제해줘",
+    "• 우유 사기를 두유 사기로 바꿔줘",
+    "• 완료 항목 지워줘",
+    "• 남은 할 일 보여줘",
+  ].join("\n");
+
+  function say(who, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + who;
+    div.textContent = text;
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function listText(items) {
+    if (items.length === 0) return "없어요.";
+    return items
+      .map(t => `${todos.indexOf(t) + 1}. ${t.done ? "✓ " : ""}${t.text}`)
+      .join("\n");
+  }
+
+  function leftText() {
+    return `(남은 할 일 ${todos.filter(t => !t.done).length}개)`;
+  }
+
+  // 따옴표와 끝의 목적격 조사(을/를)를 떼어 항목 이름만 남김
+  function cleanTarget(s) {
+    return s.replace(/["'“”‘’]/g, "").trim().replace(/(\S)(을|를)$/, "$1").trim();
+  }
+
+  // 번호("1번") 또는 이름(정확히 일치 → 부분 일치)으로 항목 찾기
+  function findTodo(target) {
+    if (!target) return { error: "어떤 항목인지 알려주세요." };
+    const num = target.match(/^(\d+)\s*번?$/);
+    if (num) {
+      const t = todos[Number(num[1]) - 1];
+      return t ? { todo: t } : { error: `${num[1]}번 항목이 없어요.` };
+    }
+    const q = target.toLowerCase();
+    const exact = todos.filter(t => t.text.toLowerCase() === q);
+    const matches = exact.length ? exact : todos.filter(t => t.text.toLowerCase().includes(q));
+    if (matches.length === 1) return { todo: matches[0] };
+    if (matches.length === 0) return { error: `'${target}' 항목을 찾지 못했어요.` };
+    return { error: `'${target}'에 해당하는 항목이 여러 개예요. 번호로 말씀해 주세요.\n` + listText(matches) };
+  }
+
+  function handle(raw) {
+    const cmd = raw.trim()
+      .replace(/[.!?~]+$/, "")
+      .replace(/\s*(해\s*주세요|해\s*줘|해\s*줄래|주세요|줘|해|하기|좀)$/, "")
+      .trim();
+    let m;
+
+    if (/^(도움말|help|\?|뭐\s*할\s*수\s*있어)/i.test(cmd)) return HELP;
+
+    if (/^완료(된|한)?\s*(항목|것|거|일)?\s*(전부|모두|다)?\s*(삭제|지워|정리|비워)$/.test(cmd)) {
+      const n = todos.filter(t => t.done).length;
+      if (n === 0) return "완료된 항목이 없어요.";
+      todos = todos.filter(t => !t.done);
+      save(); render();
+      return `완료 항목 ${n}개를 삭제했어요. ${leftText()}`;
+    }
+
+    if (/(보여|알려|목록|리스트|뭐\s*있어|뭐야)$/.test(cmd) || /^(남은\s*)?할\s*일$/.test(cmd)) {
+      if (/남은|진행|안\s*한/.test(cmd)) return "남은 할 일:\n" + listText(todos.filter(t => !t.done));
+      if (/완료/.test(cmd)) return "완료한 일:\n" + listText(todos.filter(t => t.done));
+      return "전체 할 일:\n" + listText(todos);
+    }
+
+    if ((m = cmd.match(/^(.+?)(?:을|를|에서)\s+(.+?)(?:으로|로)\s*(?:수정|변경|바꿔|고쳐)$/))) {
+      const found = findTodo(cleanTarget(m[1]));
+      if (found.error) return found.error;
+      const next = cleanTarget(m[2]);
+      if (!next) return "새 이름을 알려주세요.";
+      const prev = found.todo.text;
+      found.todo.text = next;
+      save(); render();
+      return `'${prev}' → '${next}' 로 바꿨어요.`;
+    }
+
+    if ((m = cmd.match(/^(.+?)\s*(?:완료\s*)?(?:취소|해제|되돌려)$/))) {
+      const found = findTodo(cleanTarget(m[1]));
+      if (found.error) return found.error;
+      if (!found.todo.done) return `'${found.todo.text}' 은(는) 이미 진행 중이에요.`;
+      found.todo.done = false;
+      save(); render();
+      return `'${found.todo.text}' 다시 진행 중으로 바꿨어요. ${leftText()}`;
+    }
+
+    if ((m = cmd.match(/^(.+?)\s*(?:완료|체크|끝냈어|끝|다\s*했어|했어)$/))) {
+      const found = findTodo(cleanTarget(m[1]));
+      if (found.error) return found.error;
+      if (found.todo.done) return `'${found.todo.text}' 은(는) 이미 완료했어요.`;
+      found.todo.done = true;
+      save(); render();
+      return `'${found.todo.text}' 완료 처리했어요. ${leftText()}`;
+    }
+
+    if ((m = cmd.match(/^(.+?)\s*(?:삭제|지워|제거|빼|없애)$/))) {
+      const found = findTodo(cleanTarget(m[1]));
+      if (found.error) return found.error;
+      todos = todos.filter(t => t !== found.todo);
+      save(); render();
+      return `'${found.todo.text}' 삭제했어요. ${leftText()}`;
+    }
+
+    if ((m = cmd.match(/^(.+?)\s*(?:추가|등록|넣어|적어)$/) || cmd.match(/^(?:추가|등록)\s*:?\s*(.+)$/))) {
+      // "우유 사기, 빵 사기 추가"처럼 여러 개를 한 번에
+      const texts = m[1].split(/\s*[,，]\s*|\s+그리고\s+/).map(cleanTarget).filter(Boolean);
+      if (texts.length === 0) return "추가할 내용을 알려주세요.";
+      for (const text of texts) todos.push({ id: Date.now() + Math.random(), text, done: false });
+      save(); render();
+      return `${texts.map(t => `'${t}'`).join(", ")} 추가했어요. ${leftText()}`;
+    }
+
+    return "무슨 말인지 잘 모르겠어요.\n" + HELP;
+  }
+
+  chatForm.addEventListener("submit", e => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    say("me", text);
+    say("bot", handle(text));
+    chatInput.value = "";
+  });
+
+  say("bot", "안녕하세요! 할 일을 말로 관리해 보세요.\n" + HELP);
+
+  render();
+</script>
+</body>
+</html>
